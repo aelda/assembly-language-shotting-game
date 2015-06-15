@@ -72,6 +72,7 @@ enemyBackColor		BYTE	white*16	;0E0h
 enemyHitBoundryFlag	BYTE 	0
 enemyResetLine		BYTE	80 DUP(" ")
 showup  			BYTE 	0
+first				BYTE    0
 
 background BYTE	" "
 backgroundColor DWORD (black*16)+black
@@ -80,8 +81,8 @@ frontColorMask BYTE 0Fh
 
 .code
 main PROC
-
-	call Clrscr					
+	
+	call Clrscr
 
 L0:
 	call HandleKeyEvent	
@@ -151,6 +152,7 @@ ClearBulletPos PROC USES eax
 ClearBulletPos ENDP
 
 ShowBullet PROC USES eax edx
+
 	cmp BulletFlag, 0
 	je dontshow
 	cmp OldBulletY, 0
@@ -286,6 +288,11 @@ showEnemy ENDP
 
 
 showScore PROC USES eax edx
+	
+	.IF first ==0
+	mov explosionFlag,0
+	mov first,1
+	.ENDIF
 	xor eax,eax
 	mov eax, scoreColor
 	call SetTextColor
@@ -296,12 +303,15 @@ showScore PROC USES eax edx
 	call WriteString
 	add dl, 7
 	call Gotoxy
+
 	cmp explosionFlag, 0
 	je remain
 	inc score
 	mov explosionFlag, 2
-
+	
+	
 remain:
+
 	mov eax, score
 	call WriteDec
 	ret
@@ -325,6 +335,7 @@ showLife PROC USES eax edx
 	cmp life, 1
 	ja nowarning
 	call clearShowLife
+
 
 nowarning:
 	call SetTextColor
@@ -388,7 +399,7 @@ checkLife PROC USES eax ebx edx
 	mov ebx, OFFSET winCaption
 	mov edx, OFFSET winQuestion
 	call MsgBoxAsk
-	cmp eax, 6	; user press 'y'
+	cmp eax, 6
 	je L5
 	mov QuitFlag, 1
 	ret
