@@ -14,22 +14,21 @@ INCLUDE Irvine32.inc
 main          EQU start@0
 .data
 screenColumns		DWORD	80
-screenLeftBoundry	BYTE	0
+screenLeftBoundry	BYTE    0
 screenRightBoundry	BYTE	79
 QuitFlag			BYTE	0
 
-winCaption	BYTE	"Game Message", 0
-winQuestion	BYTE	"You Win!", 0dh, 0ah
-			BYTE	"Try again?", 0
+winQ	BYTE	"You Win!", 0dh, 0ah
+		BYTE	"Try again?", 0
+lossQ	BYTE	"You Lose!", 0dh, 0ah
+		BYTE	"try again?", 0
 
-lossCaption		BYTE	"Game Message", 0
-lossQuestion	BYTE	"You Lose!", 0dh, 0ah
-				BYTE	"try again?", 0
+memuTitle		BYTE  	"Shooting Game",0
 
-MainChar			BYTE	06h, 0		
+MainChar			BYTE	04h, 0		
 MainCharMoveStep	BYTE	2
 MainCharFrontColor	BYTE	white	
-MainCharBackColor	BYTE	red*16	;20h
+MainCharBackColor	BYTE	red*16	
 MainCharX			BYTE	20
 MainCharY			BYTE	20
 OldMainCharX		BYTE	20
@@ -47,7 +46,7 @@ OldBulletY			BYTE	0
 scoreColor	DWORD	white+(black*16)
 scoreMsg	BYTE	"Score:", 0
 score		DWORD	0
-winScore	DWORD	5
+winScore	DWORD	3
 scoreY		BYTE	22
 scoreX		BYTE	40
 
@@ -63,16 +62,17 @@ explosionFlag		BYTE	0
 
 enemySymbol			BYTE	49h, 49h, 49h, 49h, 0
 enemySize			BYTE	4
-enemyResetSymbol	BYTE	4 DUP(" ")	; 4 should be same as enemySize
+enemyResetSymbol	BYTE	4 DUP(" ")
 enemyInitX			BYTE	5
 enemyX				BYTE	0
 enemyY				BYTE	?
-enemyFrontColor		BYTE	yellow		;05h
-enemyBackColor		BYTE	white*16	;0E0h
+enemyFrontColor		BYTE	yellow		
+enemyBackColor		BYTE	white*16	
 enemyHitBoundryFlag	BYTE 	0
 enemyResetLine		BYTE	80 DUP(" ")
 showup  			BYTE 	0
 first				BYTE    0
+nextPageValue		BYTE    0
 
 background BYTE	" "
 backgroundColor DWORD (black*16)+black
@@ -83,8 +83,20 @@ frontColorMask BYTE 0Fh
 main PROC
 	
 	call Clrscr
+	call setMenuBg
 
 L0:
+	call HandleKeyEvent	
+	cmp nextPageValue,1
+	je clear
+	jmp L0
+	
+clear:
+	call ClearMenu
+	jmp startGame
+	
+startGame:
+	
 	call HandleKeyEvent	
 	call ClearMainCharOldPos
 	call ClearBulletOldPos
@@ -99,15 +111,82 @@ L0:
 	call showLife
 	call ShowScore	
 	call checkLife
-	add enemyFrontColor, 2
 	cmp QuitFlag, 1
 	je Exit0
-	jmp L0
+	jmp startGame
+
 
 Exit0:
 	INVOKE ExitProcess, 0
 
 main ENDP
+
+
+setMenuBg PROC
+	pushad
+	mov eax, white+(white*16)
+	call SetTextColor
+	mov dh, 0
+	mov dl, 0
+	mov bx, dx
+	mov eax, 80
+	mov ecx, eax
+	
+L1:	
+	mov eax, ecx
+	mov ecx, 20
+	
+L0:
+	mov dx, bx	
+	call Gotoxy
+	mov edx, offset background
+	call WriteString
+	inc bh
+	loop L0
+	mov bh, 0
+	inc bl
+	mov ecx, eax
+	loop L1
+	mov eax,blue+(white*16)
+	call SetTextColor
+	mov dh,10
+	mov dl,35
+	call Gotoxy
+	mov edx,offset memuTitle
+	call WriteString 
+	popad
+	ret
+
+setMenuBg ENDP
+
+ClearMenu PROC
+	pushad
+	mov eax, black+(black*16)
+	call SetTextColor
+	mov dh, 0
+	mov dl, 0
+	mov bx, dx
+	mov eax, 80
+	mov ecx, eax
+	
+L1:	
+	mov eax, ecx
+	mov ecx, 20
+	
+L0:
+	mov dx, bx	
+	call Gotoxy
+	mov edx, offset background
+	call WriteString
+	inc bh
+	loop L0
+	mov bh, 0
+	inc bl
+	mov ecx, eax
+	loop L1
+	popad
+	ret
+ClearMenu ENDP
 
 ClearMainCharOldPos PROC USES eax edx
 	mov dh, OldMainCharY
@@ -396,8 +475,7 @@ checkLife PROC USES eax ebx edx
 	mov eax, winScore
 	cmp score, eax
 	jne L4
-	mov ebx, OFFSET winCaption
-	mov edx, OFFSET winQuestion
+	mov edx, OFFSET winQ
 	call MsgBoxAsk
 	cmp eax, 6
 	je L5
@@ -416,8 +494,7 @@ L4:
 	ret
 	
 L0:
-	mov ebx, OFFSET lossCaption
-	mov edx, OFFSET lossQuestion
+	mov edx, OFFSET lossQ
 	call MsgBoxAsk
 	cmp eax, 6
 	je L1
@@ -435,24 +512,29 @@ checkLife ENDP
 HandleKeyEvent PROC
 	pushad
 	mov eax, 50
-	call Delay		;Each frame,the duration ofthe delay MUST be 50 milliseconds.
+	call Delay		
 	call ReadKey
+	cmp al, 'z'
+	je nextPage
 	cmp al, 'a'
 	je Left
 	cmp al, 'd'
 	je Right
 	cmp al, ' '
 	je Fire
-	cmp dx, 001Bh	;key ESC
+	cmp dx, 001Bh	
 	je Quit
 	jmp	L1
-	
+
+nextPage:
+	mov nextPageValue,1
+	jmp L1
 Left:
-	call HandleKeyEventLeftMove
+	call LeftMove
 	jmp L1
 	
 Right:
-	call HandleKeyEventRightMove
+	call RightMove
 	jmp L1
 	
 Fire:
@@ -468,29 +550,29 @@ L1:
 HandleKeyEvent ENDP 
 
 
-HandleKeyEventLeftMove PROC USES eax
+LeftMove PROC USES eax
 	mov al, screenLeftBoundry
 	inc al
-	cmp MainCharX, al	;check left boundry
+	cmp MainCharX, al	
 	jbe stay
 	mov al, MainCharMoveStep
 	sub MainCharX, al
 	
 stay:
 	ret
-HandleKeyEventLeftMove ENDP 
+LeftMove ENDP 
 
 
-HandleKeyEventRightMove PROC USES eax
+RightMove PROC USES eax
 	mov al, screenRightBoundry
 	dec al
-	cmp MainCharX, al	;check right boundry
+	cmp MainCharX, al	
 	jae stay
 	mov al, MainCharMoveStep
 	add MainCharX, al
 	
 stay:
 	ret
-HandleKeyEventRightMove ENDP 
+RightMove ENDP 
 
 END main 
